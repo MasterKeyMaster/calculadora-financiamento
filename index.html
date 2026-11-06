@@ -1,40 +1,83 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Calculadora de Financiamento</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@1.11.0/build/stlite.css" />
-    <style>
-      #carregando { font-family: system-ui, sans-serif; padding: 2rem; color: #444; }
-    </style>
-  </head>
-  <body>
-    <div id="root"><p id="carregando">Carregando a calculadora… o primeiro acesso pode levar cerca de um minuto.</p></div>
-    <script type="module">
-      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.11.0/build/stlite.js";
-      const arquivos = [
-        "app/main.py",
-        "src/financiamento/__init__.py",
-        "src/financiamento/affordability.py",
-        "src/financiamento/insurance.py",
-        "src/financiamento/localization.py",
-        "src/financiamento/models.py",
-        "src/financiamento/sac.py",
-        "src/financiamento/scenarios.py",
-        "src/financiamento/summaries.py",
-        "src/financiamento/data/presets.json",
-        "src/financiamento/data/calibrated_profiles.json",
-      ];
-      mount(
-        {
-          requirements: ["plotly", "pandas"],
-          entrypoint: "app/main.py",
-          files: Object.fromEntries(arquivos.map((f) => [f, { url: "./" + f }])),
-          streamlitConfig: { "client.toolbarMode": "viewer" },
-        },
-        document.getElementById("root"),
-      );
-    </script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Compare seu financiamento</title>
+  <meta name="description" content="Compare SBPE TR PLUS e MCMV Classe Média (SAC) com seguros, tarifas e pacote/previdência." />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>Compare seu financiamento</h1>
+      <p class="muted">SAC · Referências CAIXA de novembro de 2026 · Cálculo no seu navegador; nada é enviado.</p>
+    </header>
+
+    <p class="note">Modelo calibrado contra as 420 parcelas de cada PDF. Curvas de MIP inferidas para os perfis originais,
+      sem tabela etária universal. A última parcela inclui o residual de amortização omitido no fluxo do PDF.
+      Pacote e previdência ficam separados: informe eventuais cobranças em cada modalidade.</p>
+
+    <section class="card">
+      <fieldset class="segmented" id="mode">
+        <legend>Modo de comparação</legend>
+        <label><input type="radio" name="mode" value="shared" /> Comparar nas mesmas condições</label>
+        <label><input type="radio" name="mode" value="pdf" checked /> Reproduzir PDFs (aproximação)</label>
+      </fieldset>
+      <p class="muted small" id="mode-note">Cada modalidade começa com imóvel, entrada, prazo e data do seu PDF. Os campos podem ser editados.
+        Nos PDFs, as entradas diferem em R$ 21.537,01; a diferença de desembolso não decorre apenas dos juros.</p>
+      <div id="shared-fields" class="grid g3" hidden></div>
+      <div class="grid g3" id="income-fields"></div>
+      <details>
+        <summary>Premissas compartilhadas e perfil dos compradores</summary>
+        <div class="grid g2" id="assumption-fields"></div>
+        <p class="muted small" id="tr-note"></p>
+        <p class="muted small">Cenário de TR: saldo corrigido antes dos juros; amortização recalculada pelo prazo restante.
+          Hipótese matemática, sem previsão da TR nem garantia da convenção do contrato.</p>
+        <div id="buyers"></div>
+        <p class="muted small">Perfil apenas informativo: idade e participação não recalculam a curva de seguro inferida do PDF.
+          MCMV original: nascimento 17/05/1989; TR PLUS: não informado.</p>
+      </details>
+      <button type="button" id="reset-rates" class="secondary">Restaurar juros dos PDFs</button>
+    </section>
+
+    <div class="grid g2 proposals" id="proposals"></div>
+
+    <section class="card" id="difference"></section>
+
+    <section class="card">
+      <h2>Evolução por ano do contrato</h2>
+      <div class="chart"><canvas id="chart-mean" aria-label="Média mensal de desembolso por ano"></canvas></div>
+      <div class="chart"><canvas id="chart-balance" aria-label="Saldo ao final de cada ano"></canvas></div>
+      <div class="table-scroll" id="annual-table"></div>
+    </section>
+
+    <details class="card" id="monthly">
+      <summary>Tabela mensal completa e exportação CSV</summary>
+      <div id="monthly-content"></div>
+    </details>
+
+    <details class="card">
+      <summary>Premissas, fontes e diferenças conhecidas</summary>
+      <p>SAC com aritmética decimal, arredondamento comercial em centavos e ajuste residual na última amortização.
+        Taxa nominal anual dividida por 12; taxa efetiva anual convertida por capitalização equivalente.
+        Tarifas, MIP e DFI arredondados por mês. Não inclui ITBI, registro e outras despesas, salvo se informadas.</p>
+      <p>As 420 linhas de cada PDF foram relidas das imagens e conciliadas. O MIP e o DFI calibrados coincidem
+        em todas as 840 parcelas originais. No TR, a taxa nominal inferida de 10,654% a.a. explica os juros iniciais
+        de R$ 1.420,53; restam R$ 0,01 de diferença nas parcelas 132 e 341.</p>
+      <p>O PDF mantém a amortização fixa arredondada até o fim e deixa um residual de R$ 1,00 (TR) / R$ 1,59 (MCMV),
+        apesar de mostrar saldo zero. Esta calculadora cobra esse residual na última parcela (por exemplo, R$ 359,02
+        no MCMV contra R$ 357,43 no PDF), sem escondê-lo em seguros ou previdência.</p>
+      <p>Com seguros e tarifa, os PDFs somam R$ 509.618,72 (TR) e R$ 422.393,66 (MCMV). Com a precisão inferida
+        ativada no TR, os totais calculados são R$ 509.619,70 e R$ 422.395,25.</p>
+      <p>Referências históricas dos resumos dos PDFs (o total inclui somente amortização e juros):</p>
+      <div class="table-scroll" id="summary-refs"></div>
+      <p class="small"><a href="https://www.caixa.gov.br/voce/habitacao/financiamento/perguntas-frequentes/Paginas/default.aspx">CAIXA: relacionamento e juros</a> ·
+        <a href="https://www.caixa.gov.br/Downloads/habitacao-documentos-gerais/passos_indexadores_amortizacao.pdf">CAIXA: amortização e indexadores</a> ·
+        <a href="https://www.gov.br/susep/pt-br/assuntos/meu-futuro-seguro/seguros-previdencia-e-capitalizacao/seguros/seguro-habitacional">SUSEP: seguro habitacional</a></p>
+    </details>
+  </main>
+</body>
 </html>
