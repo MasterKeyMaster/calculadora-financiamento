@@ -1,0 +1,26 @@
+{
+  "tr_plus": {
+    "name": "SBPE TR PLUS", "date": "2026-11-05", "property_value": "530000.00",
+    "down_payment": "370000.00", "months": 420, "annual_nominal": "10.65",
+    "annual_effective_displayed": "11.19", "first_summary": "1886.10", "first_table": "1886.04",
+    "last_summary": "409.33", "last_table": "409.34", "total_summary": "459023.14",
+    "cet_historical": "12.36", "quota_percent": "80", "administration": "25.00",
+    "first_mip": "24.58", "first_dfi": "34.98", "upfront_insurance": "59.62",
+    "evaluation": "841.44", "birth_date": null,
+    "source": "Simulas TR PLUS CT.pdf, páginas 1, 2 e 55; conferência visual",
+    "insurance_model": "Alíquota constante inferida da primeira linha; não reproduz curva etária",
+    "package_status": "Não confirmado; valores padrão zero não significam ausência de cobrança"
+  },
+  "mcmv": {
+    "name": "Programa Minha Casa, Minha Vida - Classe Média", "date": "2026-11-06", "property_value": "530000.00",
+    "down_payment": "391537.01", "months": 420, "annual_nominal": "10.00",
+    "annual_effective_displayed": "10.47", "first_summary": "1566.10", "first_table": "1566.05",
+    "last_summary": "357.43", "last_table": "357.43", "total_summary": "381351.39",
+    "cet_historical": "11.88", "quota_percent": "60", "administration": "25.00",
+    "first_mip": "19.89", "first_dfi": "37.63", "upfront_insurance": "57.57",
+    "evaluation": "2076.94", "birth_date": "1989-05-17",
+    "source": "Simulas MCMVD faixa 4 CT.pdf, páginas 1, 2 e 55; conferência visual",
+    "insurance_model": "Alíquota constante inferida da primeira linha; não reproduz curva etária",
+    "package_status": "Não confirmado; valores padrão zero não significam ausência de cobrança"
+  }
+}

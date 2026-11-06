@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calculadora de Financiamento</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@1.11.0/build/stlite.css" />
+    <style>
+      #carregando { font-family: system-ui, sans-serif; padding: 2rem; color: #444; }
+    </style>
+  </head>
+  <body>
+    <div id="root"><p id="carregando">Carregando a calculadora… o primeiro acesso pode levar cerca de um minuto.</p></div>
+    <script type="module">
+      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.11.0/build/stlite.js";
+      const arquivos = [
+        "app/main.py",
+        "src/financiamento/__init__.py",
+        "src/financiamento/affordability.py",
+        "src/financiamento/insurance.py",
+        "src/financiamento/localization.py",
+        "src/financiamento/models.py",
+        "src/financiamento/sac.py",
+        "src/financiamento/scenarios.py",
+        "src/financiamento/summaries.py",
+        "src/financiamento/data/presets.json",
+        "src/financiamento/data/calibrated_profiles.json",
+      ];
+      mount(
+        {
+          requirements: ["plotly", "pandas"],
+          entrypoint: "app/main.py",
+          files: Object.fromEntries(arquivos.map((f) => [f, { url: "./" + f }])),
+          streamlitConfig: { "client.toolbarMode": "viewer" },
+        },
+        document.getElementById("root"),
+      );
+    </script>
+  </body>
+</html>

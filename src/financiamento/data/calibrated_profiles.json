@@ -1,0 +1,16 @@
+{
+  "source": "PDFs locais de novembro/2026; 420 linhas por modalidade relidas das imagens e conciliadas. Ver data/*_image_reference.json e Project/reviews/2026-11-06-calibracao-review.md.",
+  "scope": "Alíquotas inferidas por mês do contrato destes perfis, sobre saldo após amortização. Não é tabela etária universal. Não inferir nascimento do TR PLUS.",
+  "tr_plus": {
+    "annual_nominal_inferred": "10.654",
+    "rate_note": "Precisão interna inferida. Reproduz 418/420 prestações base antes do ajuste residual; outras duas diferem em R$ 0,01. Nenhuma taxa constante reproduz simultaneamente todas as faixas de arredondamento observadas.",
+    "mip_basis": "closing",
+    "mip_bands": [[1, "0.0154"], [43, "0.0252"], [103, "0.0386"], [163, "0.0676"], [223, "0.1533"], [283, "0.2731"], [343, "0.3259"], [403, "0.4894"]]
+  },
+  "mcmv": {
+    "annual_nominal_inferred": "10.00",
+    "rate_note": "Taxa nominal exibida reproduz as 420 prestações base antes do ajuste residual.",
+    "mip_basis": "closing",
+    "mip_bands": [[1, "0.0144"], [43, "0.0244"], [103, "0.0359"], [163, "0.0645"], [223, "0.0764"], [283, "0.1296"], [343, "0.2005"], [403, "0.3729"]]
+  }
+}
