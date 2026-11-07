@@ -125,3 +125,14 @@ button.insight .go { margin-top: auto; color: var(--accent); font-weight: 600; f
 #ad_difference td:first-child { white-space: normal; }
 @media (max-width: 480px) { #ad_difference table { font-size: .72rem; } #ad_difference th, #ad_difference td { padding: 6px 3px; } }
 #s_actions { gap: 16px; }
+
+/* Balões de ajuda */
+button.help { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0;
+  margin-left: 2px; border-radius: 50%; border: 1px solid var(--muted); background: transparent; color: var(--muted);
+  font-size: .7rem; font-weight: 700; line-height: 1; vertical-align: 1px; position: relative; }
+button.help::before { content: ""; position: absolute; inset: -12px; }
+button.help:hover, button.help[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+button.help:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tip { position: fixed; z-index: 50; max-width: min(300px, calc(100vw - 16px)); padding: 10px 12px; border-radius: 8px;
+  background: var(--text); color: var(--surface); font-size: .85rem; line-height: 1.4; font-weight: 400;
+  box-shadow: var(--elev2); pointer-events: none; }

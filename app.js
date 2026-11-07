@@ -21,6 +21,87 @@ let timer, charts = {}, lastResults = {}, singleResult = null, activeTab = "simu
 let singleActions = [], beforeAfter = null, adResults = {};
 class FieldError extends Error {}
 
+// ---------- Balões de ajuda ----------
+// Chave = rótulo do campo (texto exato ou expressão). Campos óbvios (imóvel, entrada, prazo, data, tipo da taxa,
+// renda, limite e TR) ficam sem balão, a pedido do dono.
+const RATE_HELP = "Taxa anual do contrato. Nominal: dividida por 12 para achar a taxa do mês (é a que o PDF destaca). Efetiva: já inclui juros sobre juros; o mês é calculado por equivalência.";
+const HELP = [
+  ["Juros nominais (% a.a.)", RATE_HELP],
+  ["Juros efetivos (% a.a.)", RATE_HELP],
+  [/^Usar precisão interna inferida/, "O PDF do TR PLUS mostra 10,65%, mas os juros das parcelas só batem com 10,654%. Ligado, o cálculo usa 10,654% quando a taxa digitada é 10,65% nominal."],
+  ["Usar curva de MIP inferida deste PDF", "O MIP (seguro de morte e invalidez) muda com a idade. A curva repete, mês a mês, as alíquotas reconstruídas do PDF original. Vale para aquele perfil; para outra pessoa, desligue e use uma alíquota constante."],
+  ["MIP mensal constante (%) — usado ao desativar a curva", "Seguro de morte e invalidez permanente. Percentual mensal aplicado sobre o saldo devedor depois da amortização. Só é usado com a curva desligada."],
+  ["DFI mensal (%)", "Seguro de danos físicos ao imóvel. Percentual mensal sobre o valor do imóvel, por isso não cai junto com o saldo."],
+  ["Administração mensal (R$)", "Tarifa fixa cobrada todo mês junto com a parcela. Nos dois PDFs é R$ 25,00."],
+  ["Despesas iniciais, incluindo avaliação e seguro à vista (R$)", "Pagas uma vez, na contratação: avaliação do imóvel e seguro cobrado à vista. Entram no desembolso completo. ITBI e registro não estão incluídos; some aqui se quiser."],
+  ["Zerar seguros no último mês", "Os PDFs não cobram MIP e DFI na última parcela, quando a dívida termina. Desligue para cobrar os seguros também nesse mês."],
+  ["Pacote: pagamento inicial (R$)", "Valor pago uma vez para contratar o pacote de serviços exigido para o desconto na taxa."],
+  ["Pacote: mensalidade (R$)", "Valor mensal do pacote de serviços (conta, cartão, seguros extras). Somado ao desembolso de cada mês."],
+  ["Pacote: duração (meses)", "Por quantos meses a mensalidade do pacote é paga. Zero desliga a cobrança mensal."],
+  ["Previdência: aporte inicial (R$)", "Aporte único em previdência exigido para o desconto. É dinheiro guardado, não taxa perdida, mas sai do seu bolso na contratação."],
+  ["Previdência: aporte mensal (R$)", "Aporte mensal em previdência exigido para o desconto. Entra no desembolso de cada mês; o valor acumulado e o resgate não são calculados."],
+  ["Previdência: duração (meses)", "Por quantos meses o aporte mensal é feito. Zero desliga os aportes mensais."],
+  ["Comparar com juros sem desconto do pacote", "Calcula o mesmo financiamento sem pacote e sem previdência, com a taxa sem desconto, e mostra se o desconto paga o que você gasta com eles."],
+  ["Juros sem desconto (% a.a., mesmo tipo da taxa acima)", "Taxa que o banco cobraria sem o pacote ou a previdência. Use o mesmo tipo (nominal ou efetiva) escolhido acima."],
+  ["Cota máxima (%) — referência do PDF, editável", "Parte máxima do valor do imóvel que o banco financia. Define a entrada mínima: com cota de 80%, a entrada é pelo menos 20% do imóvel. Não muda as parcelas."],
+  ["Quantidade de compradores", "Quantas pessoas compõem a compra. Apenas informativo: não muda o seguro calculado."],
+  [/^Participação comprador \d+ \(%\)$/, "Parte de cada comprador no contrato. As participações precisam somar 100%. Apenas informativo nesta versão."],
+  [/^Informar nascimento do comprador \d+$/, "Registra a data de nascimento. Apenas informativo: a curva de MIP não é recalculada pela idade."],
+  [/^Nascimento \d+$/, "Data de nascimento no formato dd/mm/aaaa. Apenas informativa nesta versão."],
+];
+const helpFor = (text) => HELP.find(([k]) => (k instanceof RegExp ? k.test(text) : k === text))?.[1];
+// No PC (mouse) o balão abre ao passar o ponteiro; no celular (toque) abre e fecha ao tocar.
+const canHover = matchMedia("(hover: hover) and (pointer: fine)");
+let openTip = null;
+const tipBox = Object.assign(document.createElement("div"), { className: "tip", id: "help-tip", hidden: true });
+tipBox.setAttribute("role", "tooltip");
+document.body.append(tipBox);
+
+function showTip(button) {
+  openTip?.setAttribute("aria-expanded", "false");
+  openTip = button;
+  tipBox.textContent = button.dataset.help;
+  tipBox.hidden = false;
+  button.setAttribute("aria-expanded", "true");
+  const r = button.getBoundingClientRect(), w = tipBox.offsetWidth, h = tipBox.offsetHeight;
+  const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), innerWidth - w - 8);
+  const below = r.bottom + 8 + h <= innerHeight;
+  tipBox.style.left = `${left}px`;
+  tipBox.style.top = `${below ? r.bottom + 8 : r.top - h - 8}px`;
+}
+function hideTip() {
+  openTip?.setAttribute("aria-expanded", "false");
+  openTip = null;
+  tipBox.hidden = true;
+}
+
+function addHelp(root = document) {
+  for (const label of root.querySelectorAll(".field label, label.check")) {
+    if (label.querySelector(".help")) continue;
+    const text = label.textContent.trim();
+    const help = helpFor(text);
+    if (!help) continue;
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "help", textContent: "?" });
+    b.dataset.help = help;
+    b.setAttribute("aria-label", `Ajuda: ${text}`);
+    b.setAttribute("aria-expanded", "false");
+    b.setAttribute("aria-describedby", "help-tip");
+    b.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (openTip === b) hideTip(); else showTip(b);
+    });
+    b.addEventListener("mouseenter", () => { if (canHover.matches) showTip(b); });
+    b.addEventListener("mouseleave", () => { if (canHover.matches && openTip === b) hideTip(); });
+    b.addEventListener("focus", () => { if (canHover.matches) showTip(b); });
+    b.addEventListener("blur", () => { if (openTip === b) hideTip(); });
+    label.append(" ", b);
+  }
+}
+document.addEventListener("click", (e) => { if (openTip && !e.target.closest(".help")) hideTip(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTip(); });
+addEventListener("scroll", hideTip, { passive: true });
+addEventListener("resize", hideTip);
+
 function numberField(parent, id, label, value, { money: isMoney = label.includes("(R$)"), min = 0, max, onCommit } = {}) {
   const places = isMoney ? 2 : 6;
   const wrap = document.createElement("div");
@@ -68,7 +149,7 @@ function setError(id, message) {
 
 function setValue(id, value) {
   const f = fields[id];
-  f.input.value = f.int ? String(value) : formatBrazilian(value, f.places, { trim: true });
+  f.input.value = f.date ? isoToBr(value) : f.int ? String(value) : formatBrazilian(value, f.places, { trim: true });
   setError(id, "");
 }
 
@@ -76,7 +157,9 @@ function read(id) {
   const f = fields[id];
   try {
     let v;
-    if (f.int) {
+    if (f.date) {
+      v = parseDate(brToIso(f.input.value));
+    } else if (f.int) {
       const n = Number(f.input.value);
       if (!Number.isInteger(n) || n < f.min || n > f.max) throw new Error(`Use um número inteiro entre ${f.min} e ${f.max}.`);
       v = n;
@@ -92,6 +175,39 @@ function read(id) {
     setError(id, e.message);
     throw new FieldError(`${f.label}: ${e.message}`);
   }
+}
+
+// ---------- Datas no padrão brasileiro (dd/mm/aaaa) ----------
+const isoToBr = (iso) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
+function brToIso(text) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(text).trim());
+  if (!m) throw new Error("Use o formato dd/mm/aaaa, por exemplo 06/11/2026.");
+  const [, d, mo, y] = m.map(Number);
+  const check = new Date(Date.UTC(y, mo - 1, d));
+  if (y < 1900 || y > 2100 || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d)
+    throw new Error("Data inexistente ou fora de 1900 a 2100.");
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+const brToIsoField = (id) => { read(id); return brToIso(fields[id].input.value); };
+
+function dateField(parent, id, label, iso) {
+  const wrap = document.createElement("div");
+  wrap.className = "field";
+  wrap.innerHTML = `<label for="${id}">${esc(label)}</label><input type="text" inputmode="numeric" placeholder="dd/mm/aaaa" maxlength="10" id="${id}" autocomplete="off" /><div class="error" hidden></div>`;
+  parent.append(wrap);
+  const input = wrap.querySelector("input");
+  input.value = isoToBr(iso);
+  fields[id] = { wrap, input, date: true, label };
+  input.addEventListener("input", (e) => {
+    // Insere as barras enquanto a pessoa digita (apagar continua funcionando).
+    if (e.inputType?.startsWith("delete")) { schedule_update(); return; }
+    const digits = input.value.replace(/\D/g, "").slice(0, 8);
+    input.value = digits.length > 4 ? `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+      : digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+    schedule_update();
+  });
+  return wrap;
 }
 
 // Entrada em reais e percentual sincronizados.
@@ -122,7 +238,7 @@ function rateFields(parent, prefix, nominal) {
   $(`${prefix}_kind`).addEventListener("change", () => { rateLabel(prefix); schedule_update(); });
 }
 function rateLabel(prefix) {
-  fields[`${prefix}_rate`].wrap.querySelector("label").textContent = $(`${prefix}_kind`).value === "nominal" ? "Juros nominais (% a.a.)" : "Juros efetivos (% a.a.)";
+  fields[`${prefix}_rate`].wrap.querySelector("label").firstChild.nodeValue = $(`${prefix}_kind`).value === "nominal" ? "Juros nominais (% a.a.)" : "Juros efetivos (% a.a.)";
 }
 
 function costFields(parent, prefix, base) {
@@ -210,8 +326,7 @@ activeTab = TABS.find((t) => HASH[t] === location.hash) ?? "simular";
 // ---------- Montagem: aba de comparação ----------
 const shared = $("shared-fields");
 propertyFields(shared, "shared_", new D(530000), new D(370000), 420);
-shared.insertAdjacentHTML("beforeend", `<div class="field"><label for="shared_date">Data da simulação</label><input type="date" id="shared_date" value="2026-11-06" min="1900-01-01" max="2100-12-31" /></div>`);
-$("shared_date").addEventListener("input", schedule_update);
+dateField(shared, "shared_date", "Data da simulação", "2026-11-06");
 numberField($("income-fields"), "income", "Renda familiar mensal (R$)", new D("7185.20"));
 numberField($("assumption-fields"), "limit", "Limite de comprometimento (%) — hipótese editável", new D(30), { max: 100 });
 numberField($("assumption-fields"), "tr", "TR anual hipotética (%)", ZERO, { max: 100 });
@@ -221,7 +336,7 @@ buyersBox.innerHTML = `<div class="grid g2"><div class="field"><label for="buyer
 function renderBuyers() {
   const count = Number($("buyer_count").value), rowsBox = $("buyer_rows");
   rowsBox.innerHTML = "";
-  for (const id of Object.keys(fields)) if (id.startsWith("share_")) delete fields[id];
+  for (const id of Object.keys(fields)) if (id.startsWith("share_") || id.startsWith("birth_")) delete fields[id];
   const each = Math.round((100 / count) * 100) / 100;
   for (let i = 0; i < count; i++) {
     const row = document.createElement("div");
@@ -232,9 +347,12 @@ function renderBuyers() {
     const right = document.createElement("div");
     row.append(right);
     checkbox(right, `known_${i}`, `Informar nascimento do comprador ${i + 1}`, false);
-    right.insertAdjacentHTML("beforeend", `<div class="field" hidden id="birth_wrap_${i}"><label for="birth_${i}">Nascimento ${i + 1}</label><input type="date" id="birth_${i}" value="1989-05-17" /></div>`);
+    const birth = dateField(right, `birth_${i}`, `Nascimento ${i + 1}`, "1989-05-17");
+    birth.id = `birth_wrap_${i}`;
+    birth.hidden = true;
     $(`known_${i}`).addEventListener("change", (e) => { $(`birth_wrap_${i}`).hidden = !e.target.checked; });
   }
+  addHelp(rowsBox);
   schedule_update();
 }
 $("buyer_count").addEventListener("change", renderBuyers);
@@ -274,8 +392,7 @@ $("reset-rates").addEventListener("click", () => {
 {
   const b = bases.tr_plus, p = presets.tr_plus;
   propertyFields($("s_property"), "s_", b.property_value, b.down_payment, b.months);
-  $("s_property").insertAdjacentHTML("beforeend", `<div class="field"><label for="s_date">Data da simulação</label><input type="date" id="s_date" value="${p.date}" min="1900-01-01" max="2100-12-31" /></div>`);
-  $("s_date").addEventListener("input", schedule_update);
+  dateField($("s_property"), "s_date", "Data da simulação", p.date);
   rateFields($("s_rate_row"), "s", new D(p.annual_nominal));
   checkbox($("s_precision_box"), "s_precision", "Usar precisão interna inferida do PDF (só TR PLUS com 10,65% nominal)", false);
   numberField($("s_income_row"), "s_income", "Renda familiar mensal (R$)", new D("7185.20"));
@@ -293,7 +410,7 @@ function loadSingle(key) {
   setValue("s_down", b.down_payment);
   setValue("s_percent", b.down_payment.div(b.property_value).times(100));
   setValue("s_months", b.months);
-  $("s_date").value = p.date;
+  setValue("s_date", p.date);
   $("s_kind").value = "nominal";
   $("s_kind").dispatchEvent(new Event("change"));
   setValue("s_rate", new D(p.annual_nominal));
@@ -339,8 +456,7 @@ const COPY_CHECKS = ["precision", "curve", "zero", "compare"];
       <div class="grid g2" id="${col}_quota_box"></div><div id="${col}_results" aria-live="polite"></div>`;
     $("ad_columns").append(card);
     propertyFields($(`${col}_property`), `${col}_`, b.property_value, b.down_payment, b.months);
-    $(`${col}_property`).insertAdjacentHTML("beforeend", `<div class="field"><label for="${col}_date">Data da simulação</label><input type="date" id="${col}_date" value="${p.date}" min="1900-01-01" max="2100-12-31" /></div>`);
-    $(`${col}_date`).addEventListener("input", schedule_update);
+    dateField($(`${col}_property`), `${col}_date`, "Data da simulação", p.date);
     rateFields($(`${col}_rate_row`), col, new D(p.annual_nominal));
     checkbox($(`${col}_precision_box`), `${col}_precision`, "Usar precisão interna inferida do PDF (só TR PLUS com 10,65% nominal)", false);
     numberField($(`${col}_tr_row`), `${col}_tr`, "TR anual hipotética (%)", ZERO, { max: 100 });
@@ -367,6 +483,7 @@ function applyComparison(id) {
     $(`${col}_kind`).value = $("s_kind").value;
     rateLabel(col);
     $(`${col}_date`).value = $("s_date").value;
+    setError(`${col}_date`, "");
     $(`${col}_precision_box`).hidden = key !== "tr_plus";
     $(`${col}_no_discount_box`).hidden = !$(`${col}_compare`).checked;
     $(`${col}_base`).textContent = `Base: ${presets[key].name}`;
@@ -417,11 +534,10 @@ function readShared() {
   $("tr-note").textContent = pdf ? "TR zero na reprodução, como nas tabelas. O campo de TR só se aplica ao modo comparativo." : "";
   const out = { pdf, income: read("income"), limit: read("limit"), tr: pdf ? ZERO : read("tr") };
   const count = Number($("buyer_count").value);
-  out.buyers = Array.from({ length: count }, (_, i) => ({ share_percent: read(`share_${i}`), birth_date: $(`known_${i}`).checked ? $(`birth_${i}`).value : null }));
+  out.buyers = Array.from({ length: count }, (_, i) => ({ share_percent: read(`share_${i}`), birth_date: $(`known_${i}`).checked ? brToIsoField(`birth_${i}`) : null }));
   if (!pdf) {
     out.price = read("shared_price"); out.down = read("shared_down"); read("shared_percent"); out.months = read("shared_months");
-    if (!$("shared_date").value) throw new FieldError("Data da simulação: informe uma data.");
-    out.date = parseDate($("shared_date").value);
+    out.date = read("shared_date");
     if (out.down.gt(out.price)) throw new FieldError("A entrada não pode superar o valor do imóvel.");
   }
   return out;
@@ -660,7 +776,6 @@ function computeColumn(prefix, key, income, limit) {
   read(`${prefix}_percent`);
   const months = read(`${prefix}_months`);
   if (down.gt(price)) throw new FieldError("A entrada não pode superar o valor do imóvel.");
-  if (!$(`${prefix}_date`).value) throw new FieldError("Data da simulação: informe uma data.");
   const tr = read(`${prefix}_tr`);
   const { kind, effective } = readRate(prefix, key);
   const costs = readCosts(prefix, base);
@@ -668,7 +783,7 @@ function computeColumn(prefix, key, income, limit) {
   const quota = read(`${prefix}_quota`);
   const scenario = {
     ...base, annual_rate: effective, rate_kind: kind, costs, tr_annual: tr,
-    property_value: price, down_payment: down, months, simulation_date: parseDate($(`${prefix}_date`).value),
+    property_value: price, down_payment: down, months, simulation_date: read(`${prefix}_date`),
   };
   const rows = schedule(scenario);
   const total = totals(scenario, rows);
@@ -859,6 +974,7 @@ function updateSingle() {
 }
 
 $("s_precision_box").hidden = singleKey() !== "tr_plus";
+addHelp();
 setTab(activeTab);
 window.addEventListener("load", update);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", update);
