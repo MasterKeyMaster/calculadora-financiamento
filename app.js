@@ -18,6 +18,7 @@ const bases = Object.fromEntries(KEYS.map((k) => [k, fromPreset(presets[k], prof
 // ---------- Campos ----------
 const fields = {};
 let timer, charts = {}, lastResults = {}, singleResult = null, activeTab = "simular";
+let singleActions = [], beforeAfter = null, adResults = {};
 class FieldError extends Error {}
 
 function numberField(parent, id, label, value, { money: isMoney = label.includes("(R$)"), min = 0, max, onCommit } = {}) {
@@ -118,10 +119,10 @@ function propertyFields(parent, prefix, price, down, months) {
 function rateFields(parent, prefix, nominal) {
   parent.insertAdjacentHTML("beforeend", `<div class="field"><label for="${prefix}_kind">Tipo da taxa anual</label><select id="${prefix}_kind"><option value="nominal">nominal</option><option value="efetiva">efetiva</option></select></div>`);
   numberField(parent, `${prefix}_rate`, "Juros nominais (% a.a.)", nominal, { max: 100 });
-  $(`${prefix}_kind`).addEventListener("change", (e) => {
-    fields[`${prefix}_rate`].wrap.querySelector("label").textContent = e.target.value === "nominal" ? "Juros nominais (% a.a.)" : "Juros efetivos (% a.a.)";
-    schedule_update();
-  });
+  $(`${prefix}_kind`).addEventListener("change", () => { rateLabel(prefix); schedule_update(); });
+}
+function rateLabel(prefix) {
+  fields[`${prefix}_rate`].wrap.querySelector("label").textContent = $(`${prefix}_kind`).value === "nominal" ? "Juros nominais (% a.a.)" : "Juros efetivos (% a.a.)";
 }
 
 function costFields(parent, prefix, base) {
@@ -180,7 +181,8 @@ function readCosts(prefix, base) {
 }
 
 // ---------- Abas ----------
-const TABS = ["simular", "comparar"];
+const TABS = ["simular", "antes", "comparar"];
+const HASH = { simular: "#simular", antes: "#antes-depois", comparar: "#comparar" };
 function setTab(name, focus = false) {
   activeTab = name;
   for (const t of TABS) {
@@ -190,7 +192,7 @@ function setTab(name, focus = false) {
     $(`panel-${t}`).hidden = !on;
     if (on && focus) tab.focus();
   }
-  history.replaceState(null, "", name === "comparar" ? "#comparar" : "#simular");
+  history.replaceState(null, "", HASH[name]);
   update();
 }
 for (const t of TABS) {
@@ -198,10 +200,12 @@ for (const t of TABS) {
   $(`tab-${t}`).addEventListener("keydown", (e) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     e.preventDefault();
-    setTab(TABS[(TABS.indexOf(t) + 1) % TABS.length], true);
+    const step = e.key === "ArrowRight" ? 1 : TABS.length - 1;
+    setTab(TABS[(TABS.indexOf(t) + step) % TABS.length], true);
   });
 }
-activeTab = location.hash === "#comparar" ? "comparar" : "simular";
+document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => { setTab(b.dataset.go); scrollTo(0, 0); }));
+activeTab = TABS.find((t) => HASH[t] === location.hash) ?? "simular";
 
 // ---------- Montagem: aba de comparação ----------
 const shared = $("shared-fields");
@@ -314,6 +318,78 @@ function loadSingle(key) {
 document.querySelectorAll('input[name="s_preset"]').forEach((r) => r.addEventListener("change", () => loadSingle(singleKey())));
 $("s_reset").addEventListener("click", () => loadSingle(singleKey()));
 
+// ---------- Montagem: aba Antes × depois ----------
+// Colunas "a" (antes) e "b" (depois), com os mesmos campos da aba Simular e TR própria em cada uma.
+const COPY_NUMBERS = ["price", "down", "percent", "months", "rate", "tr", "mip", "dfi", "admin", "initial", "package_initial", "package_monthly",
+  "package_months", "pension_initial", "pension_monthly", "pension_months", "no_discount", "quota"];
+const COPY_CHECKS = ["precision", "curve", "zero", "compare"];
+{
+  const b = bases.tr_plus, p = presets.tr_plus;
+  numberField($("ad_income_row"), "ad_income", "Renda familiar mensal (R$)", new D("7185.20"));
+  numberField($("ad_income_row"), "ad_limit", "Limite de comprometimento (%)", new D(30), { max: 100 });
+  for (const col of ["a", "b"]) {
+    const card = document.createElement("section");
+    card.className = `card tag-${col === "a" ? "antes" : "depois"}`;
+    card.innerHTML = `<h2 id="${col}_title"></h2><p class="muted small" id="${col}_base"></p><div class="grid g2" id="${col}_property"></div>
+      <div class="grid g2" id="${col}_rate_row"></div>
+      <div id="${col}_precision_box"></div><p class="muted small" id="${col}_equivalent"></p>
+      <div class="grid g2" id="${col}_tr_row"></div>
+      <details><summary>Seguros, tarifas e despesas iniciais</summary><div id="${col}_costs"></div></details>
+      <details><summary>Pacote de serviços e previdência para desconto</summary><div id="${col}_package"></div></details>
+      <div class="grid g2" id="${col}_quota_box"></div><div id="${col}_results" aria-live="polite"></div>`;
+    $("ad_columns").append(card);
+    propertyFields($(`${col}_property`), `${col}_`, b.property_value, b.down_payment, b.months);
+    $(`${col}_property`).insertAdjacentHTML("beforeend", `<div class="field"><label for="${col}_date">Data da simulação</label><input type="date" id="${col}_date" value="${p.date}" min="1900-01-01" max="2100-12-31" /></div>`);
+    $(`${col}_date`).addEventListener("input", schedule_update);
+    rateFields($(`${col}_rate_row`), col, new D(p.annual_nominal));
+    checkbox($(`${col}_precision_box`), `${col}_precision`, "Usar precisão interna inferida do PDF (só TR PLUS com 10,65% nominal)", false);
+    numberField($(`${col}_tr_row`), `${col}_tr`, "TR anual hipotética (%)", ZERO, { max: 100 });
+    costFields($(`${col}_costs`), col, b);
+    packageFields($(`${col}_package`), col, new D(p.annual_nominal));
+    numberField($(`${col}_quota_box`), `${col}_quota`, "Cota máxima (%) — referência do PDF, editável", new D(p.quota_percent), { max: 100 });
+  }
+}
+
+// Copia a simulação atual para as duas colunas e aplica a mudança da comparação útil só na coluna Depois.
+function applyComparison(id) {
+  clearTimeout(timer);
+  updateSingle();
+  const item = singleActions.find((x) => x.id === id);
+  if (!item || !singleResult) return;
+  const key = singleResult.key;
+  for (const col of ["a", "b"]) {
+    for (const f of COPY_NUMBERS) {
+      fields[`${col}_${f}`].input.value = fields[`s_${f}`].input.value;
+      setError(`${col}_${f}`, "");
+      fields[`${col}_${f}`].wrap.classList.remove("changed");
+    }
+    for (const c of COPY_CHECKS) $(`${col}_${c}`).checked = $(`s_${c}`).checked;
+    $(`${col}_kind`).value = $("s_kind").value;
+    rateLabel(col);
+    $(`${col}_date`).value = $("s_date").value;
+    $(`${col}_precision_box`).hidden = key !== "tr_plus";
+    $(`${col}_no_discount_box`).hidden = !$(`${col}_compare`).checked;
+    $(`${col}_base`).textContent = `Base: ${presets[key].name}`;
+  }
+  for (const f of ["income", "limit"]) { fields[`ad_${f}`].input.value = fields[`s_${f}`].input.value; setError(`ad_${f}`, ""); }
+  const { field, value, label, from, to } = item.patch;
+  setValue(`b_${field}`, value);
+  if (field === "down") synchronize("b_", "down");
+  fields[`b_${field}`].wrap.classList.add("changed");
+  $("a_title").textContent = "Antes: sua simulação";
+  $("b_title").textContent = `Depois: ${item.title}`;
+  $("ad_heading").textContent = `Antes × depois: ${item.title}`;
+  $("ad_change").innerHTML = `Mudança aplicada só na coluna Depois: <strong>${esc(label)}</strong> de ${esc(from)} para ${esc(to)}. Base: ${esc(presets[key].name)}.`;
+  beforeAfter = { key, title: item.title };
+  if ($("ad_monthly").open) $("ad_monthly").open = false;
+  setTab("antes");
+  scrollTo(0, 0);
+}
+$("s_actions").addEventListener("click", (e) => {
+  const button = e.target.closest("button[data-action]");
+  if (button) applyComparison(button.dataset.action);
+});
+
 $("summary-refs").innerHTML = table(["Modalidade", "Primeira", "Última", "Total"],
   KEYS.map((k) => [presets[k].name, brl(new D(presets[k].first_summary)), brl(new D(presets[k].last_summary)), brl(new D(presets[k].total_summary))]));
 
@@ -324,7 +400,9 @@ function schedule_update() {
 }
 
 function update() {
-  if (activeTab === "comparar") updateCompare(); else updateSingle();
+  if (activeTab === "comparar") updateCompare();
+  else if (activeTab === "antes") updateBeforeAfter();
+  else updateSingle();
 }
 
 function table(head, rows) {
@@ -421,15 +499,18 @@ function drawChart(id, type, labels, datasets, title, callbacks, stacked = false
   });
 }
 
-function renderCharts(results) {
+// Duas séries lado a lado. names/colors: chave da série → rótulo / variável CSS.
+const COMPARE_VIEW = { mean: "chart-mean", balance: "chart-balance", table: "annual-table", names: SHORT, colors: { tr_plus: "--tr", mcmv: "--mcmv" } };
+const BEFORE_AFTER_VIEW = { mean: "ad-chart-mean", balance: "ad-chart-balance", table: "ad_annual_table", names: { a: "Antes", b: "Depois" }, colors: { a: "--tr", b: "--c4" } };
+
+function renderCharts(results, view = COMPARE_VIEW) {
   if (!window.Chart) return;
   const { v, nf } = chartTheme();
-  const color = { tr_plus: v("--tr"), mcmv: v("--mcmv") };
   const years = Math.max(...Object.values(results).map((r) => r.annual.length));
   const labels = Array.from({ length: years }, (_, i) => i + 1);
   const make = (id, field, title) => {
     const datasets = Object.entries(results).map(([k, r]) => ({
-      label: SHORT[k], data: r.annual.map((a) => a[field].toNumber()), borderColor: color[k], backgroundColor: color[k],
+      label: view.names[k], data: r.annual.map((a) => a[field].toNumber()), borderColor: v(view.colors[k]), backgroundColor: v(view.colors[k]),
       pointRadius: 0, borderWidth: 2, tension: 0, annual: r.annual,
     }));
     drawChart(id, "line", labels, datasets, title, {
@@ -442,21 +523,22 @@ function renderCharts(results) {
       },
     });
   };
-  make("chart-mean", "mean", "Média mensal de desembolso (R$)");
-  make("chart-balance", "balance", "Saldo ao final do ano (R$)");
+  make(view.mean, "mean", "Média mensal de desembolso (R$)");
+  make(view.balance, "balance", "Saldo ao final do ano (R$)");
 }
 
-function renderAnnualTable(results) {
+function renderAnnualTable(results, view = COMPARE_VIEW) {
+  const keys = Object.keys(view.names);
   const labels = [["mean", "Média mensal"], ["total", "Total anual"], ["balance", "Saldo final"], ["minimum", "Mínimo"],
     ["maximum", "Máximo"], ["installments", "Parcelas do financiamento"], ["months", "Meses"]];
   const years = Math.max(...Object.values(results).map((r) => r.annual.length));
-  const head = ["Ano", ...labels.flatMap(([, l]) => KEYS.map((k) => `${l} · ${SHORT[k]}`))];
-  const rows = Array.from({ length: years }, (_, i) => [String(i + 1), ...labels.flatMap(([f]) => KEYS.map((k) => {
+  const head = ["Ano", ...labels.flatMap(([, l]) => keys.map((k) => `${l} · ${view.names[k]}`))];
+  const rows = Array.from({ length: years }, (_, i) => [String(i + 1), ...labels.flatMap(([f]) => keys.map((k) => {
     const a = results[k]?.annual[i];
     if (!a) return "—";
     return f === "months" ? String(a.months) : brl(a[f]);
   }))]);
-  $("annual-table").innerHTML = table(head, rows);
+  $(view.table).innerHTML = table(head, rows);
 }
 
 // ---------- Tabela mensal e CSV ----------
@@ -492,8 +574,53 @@ const renderMonthly = () => monthlyInto("monthly", "monthly-content",
   Object.entries(lastResults).map(([key, r]) => ({ title: presets[key].name, file: `${key}.csv`, rows: r.rows })));
 const renderSingleMonthly = () => monthlyInto("s_monthly", "s_monthly_content", singleResult?.rows.length
   ? [{ title: `Simulação a partir de ${presets[singleResult.key].name}`, file: `simulacao_${singleResult.key}.csv`, rows: singleResult.rows }] : []);
+const renderBeforeAfterMonthly = () => monthlyInto("ad_monthly", "ad_monthly_content",
+  Object.entries(adResults).filter(([, r]) => r.rows.length).map(([col, r]) => ({
+    title: col === "a" ? "Antes: sua simulação" : `Depois: ${beforeAfter.title}`, file: col === "a" ? "antes.csv" : "depois.csv", rows: r.rows })));
 $("monthly").addEventListener("toggle", renderMonthly);
 $("s_monthly").addEventListener("toggle", renderSingleMonthly);
+$("ad_monthly").addEventListener("toggle", renderBeforeAfterMonthly);
+
+// ---------- Atualização: antes × depois ----------
+function updateBeforeAfter() {
+  $("ad_empty").hidden = !!beforeAfter;
+  $("ad_content").hidden = !beforeAfter;
+  if (!beforeAfter) return;
+  let income, limit;
+  try { income = read("ad_income"); limit = read("ad_limit"); } catch (e) {
+    for (const col of ["a", "b"]) $(`${col}_results`).innerHTML = `<div class="alert error">${esc(e.message)}</div>`;
+    return;
+  }
+  const results = {};
+  for (const col of ["a", "b"]) {
+    try {
+      const r = computeColumn(col, beforeAfter.key, income, limit);
+      results[col] = r;
+      $(`${col}_results`).innerHTML = resultsHtml(beforeAfter.key, r, income);
+    } catch (e) {
+      $(`${col}_results`).innerHTML = `<div class="alert error">${esc(e.message)}</div>`;
+    }
+  }
+  adResults = results;
+  if (results.a && results.b) {
+    const A = results.a.total, B = results.b.total, sa = results.a.scenario, sb = results.b.scenario;
+    const insurance = (t) => t.mip.plus(t.dfi);
+    const rows = [["Desembolso completo", A.full_outflow, B.full_outflow], ["Entrada", sa.down_payment, sb.down_payment],
+      ["Primeiro desembolso mensal", A.first, B.first], ["Maior desembolso mensal", A.maximum, B.maximum], ["Último desembolso mensal", A.last, B.last],
+      ["Juros", A.interest, B.interest], ["Correção TR amortizada", A.correction, B.correction], ["Seguros (MIP + DFI)", insurance(A), insurance(B)],
+      ["Entrada mínima combinada", results.a.afford.minimum, results.b.afford.minimum]];
+    const diff = B.full_outflow.minus(A.full_outflow);
+    $("ad_difference").innerHTML = `<h2>Diferença: Depois − Antes</h2>
+      <p>Desembolso completo: <strong>${brl(diff)}</strong>. ${diff.isNegative() && !diff.isZero() ? "O Depois desembolsa menos." : diff.isZero() ? "Sem diferença." : "O Depois desembolsa mais."}</p>
+      <div class="table-scroll">${table(["Item", "Antes", "Depois", "Diferença"], rows.map(([k, x, y]) => [k, brl(x), brl(y), brl(y.minus(x))]))}</div>
+      <p class="muted small">Desembolso completo = entrada + parcelas do financiamento + pacote/previdência mensais + despesas/aportes iniciais. Valores nominais, sem inflação nem valor presente.</p>`;
+  } else {
+    $("ad_difference").innerHTML = `<h2>Diferença: Depois − Antes</h2><p class="muted">Corrija os campos destacados para comparar.</p>`;
+  }
+  const withRows = Object.fromEntries(Object.entries(results).filter(([, r]) => r.rows.length));
+  if (Object.keys(withRows).length) { renderCharts(withRows, BEFORE_AFTER_VIEW); renderAnnualTable(withRows, BEFORE_AFTER_VIEW); }
+  renderBeforeAfterMonthly();
+}
 
 // ---------- Atualização: comparação ----------
 function updateCompare() {
@@ -526,26 +653,32 @@ function updateCompare() {
 }
 
 // ---------- Atualização: uma proposta ----------
-function computeSingle() {
-  const key = singleKey(), base = bases[key];
-  const price = read("s_price"), down = read("s_down");
-  read("s_percent");
-  const months = read("s_months");
+// Uma coluna completa (aba Simular: prefixo "s"; aba Antes × depois: "a" e "b").
+function computeColumn(prefix, key, income, limit) {
+  const base = bases[key];
+  const price = read(`${prefix}_price`), down = read(`${prefix}_down`);
+  read(`${prefix}_percent`);
+  const months = read(`${prefix}_months`);
   if (down.gt(price)) throw new FieldError("A entrada não pode superar o valor do imóvel.");
-  if (!$("s_date").value) throw new FieldError("Data da simulação: informe uma data.");
-  const income = read("s_income"), limit = read("s_limit"), tr = read("s_tr");
-  const { kind, effective } = readRate("s", key);
-  const costs = readCosts("s", base);
-  const noDiscount = $("s_compare").checked ? read("s_no_discount") : null;
-  const quota = read("s_quota");
+  if (!$(`${prefix}_date`).value) throw new FieldError("Data da simulação: informe uma data.");
+  const tr = read(`${prefix}_tr`);
+  const { kind, effective } = readRate(prefix, key);
+  const costs = readCosts(prefix, base);
+  const noDiscount = $(`${prefix}_compare`).checked ? read(`${prefix}_no_discount`) : null;
+  const quota = read(`${prefix}_quota`);
   const scenario = {
     ...base, annual_rate: effective, rate_kind: kind, costs, tr_annual: tr,
-    property_value: price, down_payment: down, months, simulation_date: parseDate($("s_date").value),
+    property_value: price, down_payment: down, months, simulation_date: parseDate($(`${prefix}_date`).value),
   };
   const rows = schedule(scenario);
   const total = totals(scenario, rows);
   const afford = minimumDownPayment(scenario, income, limit, quota);
-  return { key, scenario, rows, total, afford, noDiscount, income, limit };
+  return { key, scenario, rows, total, afford, annual: annualSummary(rows), noDiscount, income, limit };
+}
+
+function computeSingle() {
+  const income = read("s_income"), limit = read("s_limit");
+  return computeColumn("s", singleKey(), income, limit);
 }
 
 function yearly(rows) {
@@ -583,9 +716,9 @@ function insights(r) {
     // Desembolso completo inclui a entrada: a diferença já desconta os R$ 10 mil adiantados.
     const saving = t.full_outflow.minus(v.t.full_outflow);
     out.push({
+      id: "entrada", patch: { field: "down", value: s.down_payment.plus(extra), label: "Entrada", from: brl(s.down_payment), to: brl(s.down_payment.plus(extra)) },
       title: "R$ 10 mil a mais na entrada", value: `economiza ${brl(saving)}`,
       text: `Em juros e seguros ao longo do contrato, já descontados os R$ 10 mil pagos antes, e a 1ª parcela cai ${brl(t.first.minus(v.t.first))}. Na prática é aplicar esse dinheiro à taxa do financiamento (${pct(effective, 2)} a.a. efetiva${s.tr_annual.isZero() ? "" : " + TR"}), sem poder resgatar. Compare com o rendimento líquido do seu dinheiro e com a reserva que você precisa manter.`,
-      test: `Para ver: some R$ 10.000,00 à entrada (${brl(s.down_payment.plus(extra))}).`,
     });
   }
 
@@ -595,9 +728,9 @@ function insights(r) {
     const v = run({ months: m2 });
     const rise = v.t.first.minus(t.first);
     out.push({
+      id: "prazo", patch: { field: "months", value: m2, label: "Prazo", from: `${s.months} meses`, to: `${m2} meses` },
       title: `Prazo de ${years(m2)} em vez de ${years(s.months)}`, value: `economiza ${brl(t.full_outflow.minus(v.t.full_outflow))}`,
       text: `A 1ª parcela sobe ${brl(rise)} (${pct(ratio(rise, t.first))}). No SAC os juros do 1º mês não dependem do prazo; só a amortização muda. Por isso encurtar costuma pesar menos na parcela do que no total.`,
-      test: `Para ver: mude o prazo para ${m2} meses.`,
     });
   }
 
@@ -632,9 +765,9 @@ function insights(r) {
     const v = run({ annual_rate: lower });
     const saving = t.full_outflow.minus(v.t.full_outflow);
     out.push({
+      id: "taxa", patch: { field: "rate", value: lower, label: "Juros", from: rateText(s.annual_rate), to: rateText(lower) },
       title: "0,5 ponto a menos de juros", value: `vale ${brl(saving)}`,
       text: `De ${rateText(s.annual_rate)} para ${rateText(lower)} (${s.rate_kind}), em média ${brl(money(saving.div(n)))} por mês do prazo. Um pacote ou previdência exigido para ganhar esse desconto só compensa, em valores nominais, se custar menos que isso por mês durante todo o prazo.`,
-      test: `Para ver: mude os juros para ${rateText(lower)}, ou use "Comparar com juros sem desconto do pacote".`,
     });
   }
 
@@ -644,9 +777,9 @@ function insights(r) {
     const v = run({ tr_annual: up });
     const m = Math.min(120, n);
     out.push({
+      id: "tr", patch: { field: "tr", value: up, label: "TR anual hipotética", from: rateText(s.tr_annual), to: rateText(up) },
       title: `TR de ${rateText(up)} a.a.`, value: `+${brl(v.t.full_outflow.minus(t.full_outflow))}`,
       text: `Com TR ${s.tr_annual.isZero() ? "zero" : `de ${rateText(s.tr_annual)}`} na simulação, 1 ponto a mais de TR muda a parcela do mês ${m} de ${brl(rows[m - 1].outflow)} para ${brl(v.rows[m - 1].outflow)}. A TR corrige o saldo todo mês, e o efeito acumula com o prazo. Cenário hipotético, não previsão.`,
-      test: `Para ver: mude a TR anual hipotética para ${rateText(up)}.`,
     });
   }
 
@@ -698,19 +831,26 @@ function updateSingle() {
   let r;
   try { r = computeSingle(); } catch (e) {
     $("s_results").innerHTML = `<div class="alert error">${esc(e.message)}</div>`;
+    singleActions = [];
+    $("s_actions").innerHTML = `<p class="muted">Corrija os campos destacados para ver as comparações.</p>`;
     $("s_insights").innerHTML = `<p class="muted">Corrija os campos destacados para ver os insights.</p>`;
     return;
   }
   singleResult = r;
   $("s_results").innerHTML = resultsHtml(key, r, r.income);
   if (!r.rows.length) {
+    singleActions = [];
+    $("s_actions").innerHTML = `<p class="muted">Sem valor financiado, não há parcelas para comparar.</p>`;
     $("s_insights").innerHTML = `<p class="muted">Sem valor financiado, não há parcelas para analisar.</p>`;
     $("s_annual_table").innerHTML = "";
     for (const id of ["s-chart-parts", "s-chart-balance"]) { charts[id]?.destroy(); delete charts[id]; }
     renderSingleMonthly();
     return;
   }
-  $("s_insights").innerHTML = insights(r).map((i) => `<article class="insight"><h3>${esc(i.title)}</h3><div class="v">${esc(i.value)}</div><p>${esc(i.text)}</p><p class="try">${esc(i.test)}</p></article>`).join("");
+  const items = insights(r);
+  singleActions = items.filter((i) => i.patch);
+  $("s_actions").innerHTML = singleActions.map((i) => `<button type="button" class="insight" data-action="${i.id}"><span class="h">${esc(i.title)}</span><span class="v">${esc(i.value)}</span><span class="p">${esc(i.text)}</span><span class="go">Comparar lado a lado →</span></button>`).join("");
+  $("s_insights").innerHTML = items.filter((i) => !i.patch).map((i) => `<article class="insight"><h3>${esc(i.title)}</h3><div class="v">${esc(i.value)}</div><p>${esc(i.text)}</p><p class="try">${esc(i.test)}</p></article>`).join("");
   const y = yearly(r.rows);
   renderSingleCharts(y);
   $("s_annual_table").innerHTML = table(["Ano", "Média mensal", "Total anual", "Amortização", "Juros", "Seguros e tarifa", "Pacote e previdência", "Saldo final"],

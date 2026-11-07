@@ -1,8 +1,9 @@
 # Calculadora de financiamento imobiliário
 
-Duas abas:
+Três abas:
 
-- **Simular uma proposta** (`#simular`): parte dos dados do PDF TR PLUS ou MCMV, tudo editável, com insights calculados sobre os seus números (entrada, prazo, juros, TR, seguros, renda).
+- **Simular uma proposta** (`#simular`): parte dos dados do PDF TR PLUS ou MCMV, tudo editável. "Comparações úteis" são botões (entrada, prazo, juros, TR); "Insights" são observações em texto (juros, seguros, renda).
+- **Antes × depois** (`#antes-depois`): aberta por uma comparação útil. Sua simulação ao lado da mesma simulação com um único campo alterado, com TR própria em cada coluna.
 - **Comparar duas propostas** (`#comparar`): SBPE TR PLUS × MCMV Classe Média (SAC), com seguros, tarifa e pacote/previdência editáveis.
 
 Site: https://masterkeymaster.github.io/calculadora-financiamento/

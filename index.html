@@ -22,6 +22,7 @@
 
     <nav class="tabs" role="tablist" aria-label="Modo da calculadora">
       <button type="button" role="tab" id="tab-simular" aria-controls="panel-simular" aria-selected="true">Simular uma proposta</button>
+      <button type="button" role="tab" id="tab-antes" aria-controls="panel-antes" aria-selected="false" tabindex="-1">Antes × depois</button>
       <button type="button" role="tab" id="tab-comparar" aria-controls="panel-comparar" aria-selected="false" tabindex="-1">Comparar duas propostas</button>
     </nav>
 
@@ -52,9 +53,15 @@
       </section>
 
       <section class="card">
-        <h2>Insights para testar</h2>
-        <p class="muted small">Calculados com os seus números e o mesmo motor. Cada um diz qual campo mudar para ver o efeito.
+        <h2>Comparações úteis</h2>
+        <p class="muted small">Cada uma muda um único campo da sua simulação. Clique para ver as duas versões lado a lado na aba Antes × depois.
           Valores nominais somados ao longo do contrato, sem inflação nem valor presente.</p>
+        <div class="insights" id="s_actions"></div>
+      </section>
+
+      <section class="card">
+        <h2>Insights</h2>
+        <p class="muted small">O que a sua simulação mostra sem mudar nada. Calculados com os seus números e o mesmo motor.</p>
         <div class="insights" id="s_insights"></div>
       </section>
 
@@ -69,6 +76,41 @@
         <summary>Tabela mensal completa e exportação CSV</summary>
         <div id="s_monthly_content"></div>
       </details>
+    </div>
+
+    <!-- ========== Aba: antes × depois de uma comparação útil ========== -->
+    <div id="panel-antes" role="tabpanel" aria-labelledby="tab-antes" hidden>
+      <section class="card" id="ad_empty">
+        <h2>Nenhuma comparação escolhida</h2>
+        <p>Escolha uma das Comparações úteis na aba Simular uma proposta. Ela aparece aqui ao lado da sua simulação.</p>
+        <button type="button" class="secondary" data-go="simular">Ir para Simular uma proposta</button>
+      </section>
+      <div id="ad_content" hidden>
+        <section class="card">
+          <h2 id="ad_heading">Antes × depois</h2>
+          <p id="ad_change"></p>
+          <p class="muted small">As duas colunas começam com os dados da sua simulação. Só o campo marcado como alterado muda na coluna Depois.
+            Os campos continuam editáveis; a aba Simular uma proposta não é alterada.</p>
+          <div class="grid g3" id="ad_income_row"></div>
+          <button type="button" class="secondary" data-go="simular">Voltar à simulação anterior</button>
+        </section>
+
+        <div class="grid g2 proposals" id="ad_columns"></div>
+
+        <section class="card" id="ad_difference"></section>
+
+        <section class="card">
+          <h2>Evolução por ano do contrato</h2>
+          <div class="chart"><canvas id="ad-chart-mean" aria-label="Média mensal de desembolso por ano, antes e depois"></canvas></div>
+          <div class="chart"><canvas id="ad-chart-balance" aria-label="Saldo ao final de cada ano, antes e depois"></canvas></div>
+          <div class="table-scroll" id="ad_annual_table"></div>
+        </section>
+
+        <details class="card" id="ad_monthly">
+          <summary>Tabela mensal completa e exportação CSV</summary>
+          <div id="ad_monthly_content"></div>
+        </details>
+      </div>
     </div>
 
     <!-- ========== Aba: duas propostas ========== -->

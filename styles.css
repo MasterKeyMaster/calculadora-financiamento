@@ -80,7 +80,7 @@ thead th { position: sticky; top: 0; background: var(--surface); }
 .chart { position: relative; height: 300px; margin-bottom: 16px; }
 .card.tagged { border-top: 4px solid var(--c); }
 
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 20px 0 0; overflow-x: auto; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 20px 0 0; overflow-x: auto; overflow-y: hidden; }
 .tabs button { background: transparent; color: var(--muted); border: 0; border-bottom: 3px solid transparent;
   border-radius: 0; padding: 10px 14px; font-weight: 600; white-space: nowrap; margin-bottom: -1px; }
 .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
@@ -93,5 +93,19 @@ thead th { position: sticky; top: 0; background: var(--surface); }
 .insight .v { font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
 .insight p { margin: 0 0 6px; font-size: .925rem; }
 .insight .try { color: var(--muted); font-size: .85rem; margin: 0; }
+button.insight { display: flex; flex-direction: column; justify-content: flex-start; width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+  border: 1px solid var(--border); border-left: 4px solid var(--c4); }
+button.insight:hover { border-color: var(--c4); background: var(--accent-soft); }
+button.insight:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.insight > span { display: block; }
+button.insight .h { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
+button.insight .p { margin: 0 0 6px; font-size: .925rem; }
+button.insight .go { margin-top: auto; color: var(--accent); font-weight: 600; font-size: .9rem; }
+.field.changed input { border-color: var(--c4); border-width: 2px; }
+.field.changed label::after { content: " · alterado"; color: var(--c4); }
+.tag-antes { --c: var(--tr); }
+.tag-depois { --c: var(--c4); }
 .tag-tr { --c: var(--tr); }
 .tag-mcmv { --c: var(--mcmv); }
+#ad_difference td:first-child { white-space: normal; }
+@media (max-width: 480px) { #ad_difference table { font-size: .72rem; } #ad_difference th, #ad_difference td { padding: 6px 3px; } }
