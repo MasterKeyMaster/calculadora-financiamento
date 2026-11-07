@@ -3,6 +3,9 @@
   --accent: #1f5fbf; --accent-soft: #e7effb; --error: #b3261e; --error-soft: #fbeaea;
   --warn: #8a5a00; --warn-soft: #fff4d6; --tr: #1f5fbf; --mcmv: #c2571a;
   --c3: #2f8a64; --c4: #7a55c2;
+  --raised: #ffffff; --outline-soft: #e6e9ee;
+  --elev1: 0 1px 2px rgba(16, 24, 40, .10), 0 1px 3px 1px rgba(16, 24, 40, .06);
+  --elev2: 0 1px 2px rgba(16, 24, 40, .12), 0 3px 8px 2px rgba(16, 24, 40, .09);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -11,6 +14,9 @@
     --accent: #7fb0ff; --accent-soft: #1e2b40; --error: #ff8a80; --error-soft: #3a1f1f;
     --warn: #f3c969; --warn-soft: #3a3020; --tr: #7fb0ff; --mcmv: #f29a62;
     --c3: #6fd1a6; --c4: #b9a0f2;
+    --raised: #222a34; --outline-soft: #2c3440;
+    --elev1: 0 1px 2px rgba(0, 0, 0, .45), 0 1px 3px 1px rgba(0, 0, 0, .25);
+    --elev2: 0 1px 2px rgba(0, 0, 0, .5), 0 3px 8px 2px rgba(0, 0, 0, .32);
     color-scheme: dark;
   }
 }
@@ -19,6 +25,9 @@
   --accent: #7fb0ff; --accent-soft: #1e2b40; --error: #ff8a80; --error-soft: #3a1f1f;
   --warn: #f3c969; --warn-soft: #3a3020; --tr: #7fb0ff; --mcmv: #f29a62;
     --c3: #6fd1a6; --c4: #b9a0f2;
+    --raised: #222a34; --outline-soft: #2c3440;
+    --elev1: 0 1px 2px rgba(0, 0, 0, .45), 0 1px 3px 1px rgba(0, 0, 0, .25);
+    --elev2: 0 1px 2px rgba(0, 0, 0, .5), 0 3px 8px 2px rgba(0, 0, 0, .32);
   color-scheme: dark;
 }
 
@@ -88,18 +97,24 @@ thead th { position: sticky; top: 0; background: var(--surface); }
 .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .insights { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
-.insight { background: var(--bg); border-radius: 8px; padding: 12px 14px; border-left: 4px solid var(--accent); }
+/* Insights: só leitura, sem aparência de botão (lista com divisória). */
 .insight h3 { font-size: 1rem; margin: 0 0 2px; }
 .insight .v { font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
 .insight p { margin: 0 0 6px; font-size: .925rem; }
 .insight .try { color: var(--muted); font-size: .85rem; margin: 0; }
-button.insight { display: flex; flex-direction: column; justify-content: flex-start; width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;
-  border: 1px solid var(--border); border-left: 4px solid var(--c4); }
-button.insight:hover { border-color: var(--c4); background: var(--accent-soft); }
+article.insight { padding: 12px 2px 4px; border-top: 1px solid var(--border); }
+
+/* Comparações úteis: cartão elevado (Material), contorno leve e sombra de nível 1; nível 2 ao passar o mouse. */
+button.insight { display: flex; flex-direction: column; justify-content: flex-start; width: 100%; text-align: left;
+  font: inherit; color: var(--text); cursor: pointer; padding: 14px 16px; border-radius: 12px;
+  background: var(--raised); border: 1px solid var(--outline-soft); box-shadow: var(--elev1);
+  transition: box-shadow .2s ease, background-color .2s ease; }
+button.insight:hover { box-shadow: var(--elev2); background: color-mix(in srgb, var(--accent) 5%, var(--raised)); }
+button.insight:active { box-shadow: var(--elev1); background: color-mix(in srgb, var(--accent) 9%, var(--raised)); }
 button.insight:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button.insight > span { display: block; }
 button.insight .h { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
-button.insight .p { margin: 0 0 6px; font-size: .925rem; }
+button.insight .p { margin: 0 0 8px; font-size: .925rem; }
 button.insight .go { margin-top: auto; color: var(--accent); font-weight: 600; font-size: .9rem; }
 .field.changed input { border-color: var(--c4); border-width: 2px; }
 .field.changed label::after { content: " · alterado"; color: var(--c4); }
@@ -109,3 +124,4 @@ button.insight .go { margin-top: auto; color: var(--accent); font-weight: 600; f
 .tag-mcmv { --c: var(--mcmv); }
 #ad_difference td:first-child { white-space: normal; }
 @media (max-width: 480px) { #ad_difference table { font-size: .72rem; } #ad_difference th, #ad_difference td { padding: 6px 3px; } }
+#s_actions { gap: 16px; }
