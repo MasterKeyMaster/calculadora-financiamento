@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Compare seu financiamento</title>
-  <meta name="description" content="Compare SBPE TR PLUS e MCMV Classe Média (SAC) com seguros, tarifas e pacote/previdência." />
+  <title>Calculadora de financiamento</title>
+  <meta name="description" content="Simule uma proposta ou compare SBPE TR PLUS e MCMV Classe Média (SAC) com seguros, tarifas e pacote/previdência." />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
   <script type="module" src="app.js"></script>
@@ -12,7 +12,7 @@
 <body>
   <main class="wrap">
     <header>
-      <h1>Compare seu financiamento</h1>
+      <h1>Simule e compare seu financiamento</h1>
       <p class="muted">SAC · Referências CAIXA de novembro de 2026 · Cálculo no seu navegador; nada é enviado.</p>
     </header>
 
@@ -20,44 +20,98 @@
       sem tabela etária universal. A última parcela inclui o residual de amortização omitido no fluxo do PDF.
       Pacote e previdência ficam separados: informe eventuais cobranças em cada modalidade.</p>
 
-    <section class="card">
-      <fieldset class="segmented" id="mode">
-        <legend>Modo de comparação</legend>
-        <label><input type="radio" name="mode" value="shared" /> Comparar nas mesmas condições</label>
-        <label><input type="radio" name="mode" value="pdf" checked /> Reproduzir PDFs (aproximação)</label>
-      </fieldset>
-      <p class="muted small" id="mode-note">Cada modalidade começa com imóvel, entrada, prazo e data do seu PDF. Os campos podem ser editados.
-        Nos PDFs, as entradas diferem em R$ 21.537,01; a diferença de desembolso não decorre apenas dos juros.</p>
-      <div id="shared-fields" class="grid g3" hidden></div>
-      <div class="grid g3" id="income-fields"></div>
-      <details>
-        <summary>Premissas compartilhadas e perfil dos compradores</summary>
-        <div class="grid g2" id="assumption-fields"></div>
-        <p class="muted small" id="tr-note"></p>
-        <p class="muted small">Cenário de TR: saldo corrigido antes dos juros; amortização recalculada pelo prazo restante.
-          Hipótese matemática, sem previsão da TR nem garantia da convenção do contrato.</p>
-        <div id="buyers"></div>
-        <p class="muted small">Perfil apenas informativo: idade e participação não recalculam a curva de seguro inferida do PDF.
-          MCMV original: nascimento 17/05/1989; TR PLUS: não informado.</p>
+    <nav class="tabs" role="tablist" aria-label="Modo da calculadora">
+      <button type="button" role="tab" id="tab-simular" aria-controls="panel-simular" aria-selected="true">Simular uma proposta</button>
+      <button type="button" role="tab" id="tab-comparar" aria-controls="panel-comparar" aria-selected="false" tabindex="-1">Comparar duas propostas</button>
+    </nav>
+
+    <!-- ========== Aba: uma proposta ========== -->
+    <div id="panel-simular" role="tabpanel" aria-labelledby="tab-simular">
+      <section class="card tagged tag-tr" id="s_card">
+        <fieldset class="segmented" id="s_preset">
+          <legend>Começar dos dados do PDF</legend>
+          <label><input type="radio" name="s_preset" value="tr_plus" checked /> SBPE TR PLUS</label>
+          <label><input type="radio" name="s_preset" value="mcmv" /> MCMV Classe Média</label>
+        </fieldset>
+        <p class="muted small">Trocar a proposta recarrega imóvel, entrada, prazo, data, juros, seguros, pacote e cota com os dados do PDF.
+          Renda, limite de comprometimento e TR continuam como estão.</p>
+        <div class="grid g3" id="s_property"></div>
+        <div class="grid g3" id="s_rate_row"></div>
+        <div id="s_precision_box"></div>
+        <p class="muted small" id="s_equivalent"></p>
+        <div class="grid g3" id="s_income_row"></div>
+        <details><summary>Seguros, tarifas e despesas iniciais</summary><div id="s_costs"></div></details>
+        <details><summary>Pacote de serviços e previdência para desconto</summary><div id="s_package"></div></details>
+        <div class="grid g2" id="s_quota_box"></div>
+        <button type="button" id="s_reset" class="secondary">Restaurar dados do PDF</button>
+      </section>
+
+      <section class="card">
+        <h2 id="s_title">Resultado</h2>
+        <div id="s_results" aria-live="polite"></div>
+      </section>
+
+      <section class="card">
+        <h2>Insights para testar</h2>
+        <p class="muted small">Calculados com os seus números e o mesmo motor. Cada um diz qual campo mudar para ver o efeito.
+          Valores nominais somados ao longo do contrato, sem inflação nem valor presente.</p>
+        <div class="insights" id="s_insights"></div>
+      </section>
+
+      <section class="card">
+        <h2>Para onde vai o dinheiro em cada ano</h2>
+        <div class="chart"><canvas id="s-chart-parts" aria-label="Composição do desembolso por ano"></canvas></div>
+        <div class="chart"><canvas id="s-chart-balance" aria-label="Saldo ao final de cada ano"></canvas></div>
+        <div class="table-scroll" id="s_annual_table"></div>
+      </section>
+
+      <details class="card" id="s_monthly">
+        <summary>Tabela mensal completa e exportação CSV</summary>
+        <div id="s_monthly_content"></div>
       </details>
-      <button type="button" id="reset-rates" class="secondary">Restaurar juros dos PDFs</button>
-    </section>
+    </div>
 
-    <div class="grid g2 proposals" id="proposals"></div>
+    <!-- ========== Aba: duas propostas ========== -->
+    <div id="panel-comparar" role="tabpanel" aria-labelledby="tab-comparar" hidden>
+      <section class="card">
+        <fieldset class="segmented" id="mode">
+          <legend>Modo de comparação</legend>
+          <label><input type="radio" name="mode" value="shared" /> Comparar nas mesmas condições</label>
+          <label><input type="radio" name="mode" value="pdf" checked /> Reproduzir PDFs (aproximação)</label>
+        </fieldset>
+        <p class="muted small" id="mode-note">Cada modalidade começa com imóvel, entrada, prazo e data do seu PDF. Os campos podem ser editados.
+          Nos PDFs, as entradas diferem em R$ 21.537,01; a diferença de desembolso não decorre apenas dos juros.</p>
+        <div id="shared-fields" class="grid g3" hidden></div>
+        <div class="grid g3" id="income-fields"></div>
+        <details>
+          <summary>Premissas compartilhadas e perfil dos compradores</summary>
+          <div class="grid g2" id="assumption-fields"></div>
+          <p class="muted small" id="tr-note"></p>
+          <p class="muted small">Cenário de TR: saldo corrigido antes dos juros; amortização recalculada pelo prazo restante.
+            Hipótese matemática, sem previsão da TR nem garantia da convenção do contrato.</p>
+          <div id="buyers"></div>
+          <p class="muted small">Perfil apenas informativo: idade e participação não recalculam a curva de seguro inferida do PDF.
+            MCMV original: nascimento 17/05/1989; TR PLUS: não informado.</p>
+        </details>
+        <button type="button" id="reset-rates" class="secondary">Restaurar juros dos PDFs</button>
+      </section>
 
-    <section class="card" id="difference"></section>
+      <div class="grid g2 proposals" id="proposals"></div>
 
-    <section class="card">
-      <h2>Evolução por ano do contrato</h2>
-      <div class="chart"><canvas id="chart-mean" aria-label="Média mensal de desembolso por ano"></canvas></div>
-      <div class="chart"><canvas id="chart-balance" aria-label="Saldo ao final de cada ano"></canvas></div>
-      <div class="table-scroll" id="annual-table"></div>
-    </section>
+      <section class="card" id="difference"></section>
 
-    <details class="card" id="monthly">
-      <summary>Tabela mensal completa e exportação CSV</summary>
-      <div id="monthly-content"></div>
-    </details>
+      <section class="card">
+        <h2>Evolução por ano do contrato</h2>
+        <div class="chart"><canvas id="chart-mean" aria-label="Média mensal de desembolso por ano"></canvas></div>
+        <div class="chart"><canvas id="chart-balance" aria-label="Saldo ao final de cada ano"></canvas></div>
+        <div class="table-scroll" id="annual-table"></div>
+      </section>
+
+      <details class="card" id="monthly">
+        <summary>Tabela mensal completa e exportação CSV</summary>
+        <div id="monthly-content"></div>
+      </details>
+    </div>
 
     <details class="card">
       <summary>Premissas, fontes e diferenças conhecidas</summary>

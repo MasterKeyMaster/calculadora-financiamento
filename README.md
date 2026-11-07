@@ -1,6 +1,9 @@
 # Calculadora de financiamento imobiliário
 
-Compara SBPE TR PLUS e MCMV Classe Média (SAC), com seguros, tarifa e pacote/previdência editáveis.
+Duas abas:
+
+- **Simular uma proposta** (`#simular`): parte dos dados do PDF TR PLUS ou MCMV, tudo editável, com insights calculados sobre os seus números (entrada, prazo, juros, TR, seguros, renda).
+- **Comparar duas propostas** (`#comparar`): SBPE TR PLUS × MCMV Classe Média (SAC), com seguros, tarifa e pacote/previdência editáveis.
 
 Site: https://masterkeymaster.github.io/calculadora-financiamento/
 
